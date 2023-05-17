@@ -6,8 +6,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
@@ -63,7 +65,11 @@ class BankSimple {
   public List<HistoryItem> getAccountStatistic(long accountId, Period period) {
     try {
       historyReadWriteLock.readLock().lock();
-      List<HistoryItem> historyItems = history.get(accountId);
+      List<HistoryItem> historyItems = history.entrySet().stream()
+          .filter(entry -> entry.getKey().id == accountId)
+          .flatMap(entry -> entry.getValue().stream())
+          .collect(Collectors.toList());
+
       if (Period.DAY == period) {
         return historyItems.stream()
             .filter(BankSimple::isInDayPeriod).collect(Collectors.toList());
@@ -128,11 +134,16 @@ class BankSimple {
     /**
      * Уникальный идентификатор счёта
      */
-    long id;
+    final long id;
     /**
      * Количество средств на счёте
      */
     BigDecimal balance;
+
+    public Account(long id, BigDecimal balance) {
+      this.id = id;
+      this.balance = balance;
+    }
 
     public void addAmount(BigDecimal amount) {
       balance = balance.add(amount);
@@ -140,6 +151,31 @@ class BankSimple {
 
     public void subtractAmount(BigDecimal amount) {
       balance = balance.subtract(amount);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      Account account = (Account) o;
+      return id == account.id && Objects.equals(balance, account.balance);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(id, balance);
+    }
+
+    @Override
+    public String toString() {
+      return "Account{" +
+          "id=" + id +
+          ", balance=" + balance +
+          '}';
     }
   }
 
@@ -167,6 +203,14 @@ class BankSimple {
       this.date = date;
     }
 
+    @Override
+    public String toString() {
+      return "HistoryItem{" +
+          "type=" + type +
+          ", amount=" + amount +
+          ", date=" + date +
+          '}';
+    }
   }
 
   /**
