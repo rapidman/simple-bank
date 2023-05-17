@@ -2,8 +2,11 @@ package ru.yoomoney.bank;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Класс представляет собой контракт на реализацию банка.
@@ -15,6 +18,7 @@ class BankSimple {
   private static final String ACCOUNT_NOT_FOUND_ERROR = "Account not found, accountId=%s";
   private final List<Account> accounts;
   private final Map<Account, List<HistoryItem>> history;
+  private final ReadWriteLock historyReadWriteLock = new ReentrantReadWriteLock();
 
   /**
    * Конструктор
@@ -23,7 +27,6 @@ class BankSimple {
    * @param history  история операций по счетам
    */
   public BankSimple(List<Account> accounts, Map<Account, List<HistoryItem>> history) {
-    // TODO
     this.accounts = accounts;
     this.history = history;
   }
@@ -44,6 +47,13 @@ class BankSimple {
         receiver.addAmount(amount);
       }
     }
+    try {
+      historyReadWriteLock.writeLock().lock();
+      addHistory(amount, sender, OperationType.WITHDRAW);
+      addHistory(amount, receiver, OperationType.TOPUP);
+    } finally {
+      historyReadWriteLock.writeLock().unlock();
+    }
   }
 
   private Account getAccountById(long accountId) {
@@ -54,6 +64,10 @@ class BankSimple {
         });
   }
 
+  private void addHistory(BigDecimal amount, Account account, OperationType operationType) {
+    history.computeIfAbsent(account, key -> new ArrayList<>())
+        .add(new HistoryItem(operationType, amount, LocalDateTime.now()));
+  }
 
   /**
    * Счёт пользователя
@@ -86,15 +100,15 @@ class BankSimple {
     /**
      * Тип операции
      */
-    OperationType type;
+    final OperationType type;
     /**
      * Сумма операции
      */
-    BigDecimal amount;
+    final BigDecimal amount;
     /**
      * Время проведения операции
      */
-    LocalDateTime date;
+    final LocalDateTime date;
 
     public HistoryItem(OperationType type, BigDecimal amount, LocalDateTime date) {
       this.type = type;
