@@ -1,12 +1,16 @@
 package ru.yoomoney.bank;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 /**
  * Класс представляет собой контракт на реализацию банка.
@@ -56,12 +60,59 @@ class BankSimple {
     }
   }
 
+  public List<HistoryItem> getAccountStatistic(long accountId, Period period) {
+    try {
+      historyReadWriteLock.readLock().lock();
+      List<HistoryItem> historyItems = history.get(accountId);
+      if (Period.DAY == period) {
+        return historyItems.stream()
+            .filter(BankSimple::isInDayPeriod).collect(Collectors.toList());
+      } else if (Period.WEEK == period) {
+        return historyItems.stream()
+            .filter(BankSimple::isInWeekPeriod).collect(Collectors.toList());
+      } else if (Period.MONTH == period) {
+        return historyItems.stream()
+            .filter(BankSimple::isInMonthPeriod).collect(Collectors.toList());
+      } else {
+        throw new IllegalArgumentException("Unsupported period type=" + period);
+      }
+    } finally {
+      historyReadWriteLock.readLock().unlock();
+    }
+  }
+
+  private static boolean isInDayPeriod(HistoryItem historyItem) {
+    LocalDateTime start = LocalDate.now().atStartOfDay();
+    return isInDateRange(historyItem, start, start.plusDays(1));
+  }
+
+  private static boolean isInWeekPeriod(HistoryItem historyItem) {
+    LocalDateTime start = LocalDate.now()
+        .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        .atStartOfDay();
+    return isInDateRange(historyItem, start, start.plusWeeks(1));
+  }
+
+  private static boolean isInMonthPeriod(HistoryItem historyItem) {
+    LocalDateTime start = LocalDate.now()
+        .with(TemporalAdjusters.firstDayOfMonth())
+        .atStartOfDay();
+    LocalDateTime end = start.plusMonths(1);
+    return isInDateRange(historyItem, start, end);
+  }
+
   private Account getAccountById(long accountId) {
     return accounts.stream()
         .filter(account -> account.id == accountId).findAny()
         .orElseThrow(() -> {
           throw new RuntimeException(String.format(ACCOUNT_NOT_FOUND_ERROR, accountId));
         });
+  }
+
+  private static boolean isInDateRange(HistoryItem historyItem, LocalDateTime start,
+      LocalDateTime end) {
+    return (start.isEqual(historyItem.date) || start.isBefore(historyItem.date)) &&
+        end.isAfter(historyItem.date);
   }
 
   private void addHistory(BigDecimal amount, Account account, OperationType operationType) {
