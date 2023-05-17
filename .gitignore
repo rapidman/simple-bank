@@ -1,0 +1,61 @@
+######################
+# Project Specific
+######################
+/target/classes/static/**
+
+######################
+# IntelliJ
+######################
+.idea/
+*.iml
+*.iws
+*.ipr
+*.ids
+*.orig
+*.editorconfig
+classes/
+out/
+
+######################
+# Maven
+######################
+/log/
+/target/
+
+######################
+# Package Files
+######################
+*.jar
+*.war
+*.ear
+*.db
+
+######################
+# Directories
+######################
+/bin/
+/deploy/
+
+######################
+# Logs
+######################
+*.log*
+
+######################
+# Others
+######################
+*.class
+*.*~
+*~
+.merge_file*
+
+######################
+# Maven Wrapper
+######################
+!.mvn/wrapper/maven-wrapper.jar
+
+######################
+# Code coverage
+######################
+/coverage/
+/.nyc_output/
