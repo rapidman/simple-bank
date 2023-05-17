@@ -1,9 +1,16 @@
 package ru.yoomoney.bank;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 /**
  * Класс представляет собой контракт на реализацию банка.
@@ -15,6 +22,7 @@ class BankSimple {
   private static final String ACCOUNT_NOT_FOUND_ERROR = "Account not found, accountId=%s";
   private final List<Account> accounts;
   private final Map<Account, List<HistoryItem>> history;
+  private final ReadWriteLock historyReadWriteLock = new ReentrantReadWriteLock();
 
   /**
    * Конструктор
@@ -23,7 +31,6 @@ class BankSimple {
    * @param history  история операций по счетам
    */
   public BankSimple(List<Account> accounts, Map<Account, List<HistoryItem>> history) {
-    // TODO
     this.accounts = accounts;
     this.history = history;
   }
@@ -44,6 +51,54 @@ class BankSimple {
         receiver.addAmount(amount);
       }
     }
+    try {
+      historyReadWriteLock.writeLock().lock();
+      addHistory(amount, sender, OperationType.WITHDRAW);
+      addHistory(amount, receiver, OperationType.TOPUP);
+    } finally {
+      historyReadWriteLock.writeLock().unlock();
+    }
+  }
+
+  public List<HistoryItem> getAccountStatistic(long accountId, Period period) {
+    try {
+      historyReadWriteLock.readLock().lock();
+      List<HistoryItem> historyItems = history.get(accountId);
+      if (Period.DAY == period) {
+        return historyItems.stream()
+            .filter(BankSimple::isInDayPeriod).collect(Collectors.toList());
+      } else if (Period.WEEK == period) {
+        return historyItems.stream()
+            .filter(BankSimple::isInWeekPeriod).collect(Collectors.toList());
+      } else if (Period.MONTH == period) {
+        return historyItems.stream()
+            .filter(BankSimple::isInMonthPeriod).collect(Collectors.toList());
+      } else {
+        throw new IllegalArgumentException("Unsupported period type=" + period);
+      }
+    } finally {
+      historyReadWriteLock.readLock().unlock();
+    }
+  }
+
+  private static boolean isInDayPeriod(HistoryItem historyItem) {
+    LocalDateTime start = LocalDate.now().atStartOfDay();
+    return isInDateRange(historyItem, start, start.plusDays(1));
+  }
+
+  private static boolean isInWeekPeriod(HistoryItem historyItem) {
+    LocalDateTime start = LocalDate.now()
+        .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        .atStartOfDay();
+    return isInDateRange(historyItem, start, start.plusWeeks(1));
+  }
+
+  private static boolean isInMonthPeriod(HistoryItem historyItem) {
+    LocalDateTime start = LocalDate.now()
+        .with(TemporalAdjusters.firstDayOfMonth())
+        .atStartOfDay();
+    LocalDateTime end = start.plusMonths(1);
+    return isInDateRange(historyItem, start, end);
   }
 
   private Account getAccountById(long accountId) {
@@ -54,6 +109,16 @@ class BankSimple {
         });
   }
 
+  private static boolean isInDateRange(HistoryItem historyItem, LocalDateTime start,
+      LocalDateTime end) {
+    return (start.isEqual(historyItem.date) || start.isBefore(historyItem.date)) &&
+        end.isAfter(historyItem.date);
+  }
+
+  private void addHistory(BigDecimal amount, Account account, OperationType operationType) {
+    history.computeIfAbsent(account, key -> new ArrayList<>())
+        .add(new HistoryItem(operationType, amount, LocalDateTime.now()));
+  }
 
   /**
    * Счёт пользователя
@@ -86,15 +151,15 @@ class BankSimple {
     /**
      * Тип операции
      */
-    OperationType type;
+    final OperationType type;
     /**
      * Сумма операции
      */
-    BigDecimal amount;
+    final BigDecimal amount;
     /**
      * Время проведения операции
      */
-    LocalDateTime date;
+    final LocalDateTime date;
 
     public HistoryItem(OperationType type, BigDecimal amount, LocalDateTime date) {
       this.type = type;
