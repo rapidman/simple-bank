@@ -23,7 +23,9 @@ class BankSimpleTest {
     Map<Account, List<HistoryItem>> history = new HashMap<>();
     BankSimple bankSimple = new BankSimple(accounts, history);
     bankSimple.transfer(1, 2, new BigDecimal(1_000));
+    bankSimple.transfer(1, 2, new BigDecimal(1_000));
     dumpHistory(history);
+    System.out.println("==================");
     dumpHistory(bankSimple.getAccountStatistic(1, Period.DAY));
     dumpHistory(bankSimple.getAccountStatistic(2, Period.DAY));
   }
