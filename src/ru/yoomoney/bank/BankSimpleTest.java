@@ -18,6 +18,10 @@ class BankSimpleTest {
   private static final int TOTAL_ACCOUNTS_COUNT = 100;
 
   public static void main(String[] args) {
+    testSingleThread();
+  }
+
+  private static void testSingleThread() {
     TestAccountProvider accountProvider = new TestAccountProvider();
     List<Account> accounts = accountProvider.createAccounts(TOTAL_ACCOUNTS_COUNT);
     Map<Account, List<HistoryItem>> history = new HashMap<>();
