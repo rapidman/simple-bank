@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -61,10 +62,18 @@ public class BankSimple {
   private static void theadSafeApproach(BigDecimal amount, Account sender, Account receiver) {
     List<Account> accountsForLock = Arrays.asList(sender, receiver);
     accountsForLock.sort((o1, o2) -> o1.id > o2.id ? 1 : -1);
-    synchronized (accountsForLock.get(0)){
-      synchronized (accountsForLock.get(1)){
-        sender.subtractAmount(amount);
-        receiver.addAmount(amount);
+    getLock(accountsForLock.iterator(), () -> {
+      sender.subtractAmount(amount);
+      receiver.addAmount(amount);
+    });
+  }
+
+  private static void getLock(Iterator<Account> iterator, Runnable callback) {
+    synchronized (iterator.next()) {
+      if (iterator.hasNext()) {
+        getLock(iterator, callback);
+      } else {
+        callback.run();
       }
     }
   }
@@ -166,7 +175,11 @@ public class BankSimple {
     }
 
     public void subtractAmount(BigDecimal amount) {
-      balance = balance.subtract(amount);
+      BigDecimal newBalance = balance.subtract(amount);
+      if (newBalance.doubleValue() < 0) {
+        throw new IllegalArgumentException("Negative balance is not supported.");
+      }
+      balance = newBalance;
     }
 
     @Override
