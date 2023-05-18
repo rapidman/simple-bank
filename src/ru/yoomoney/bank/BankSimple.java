@@ -162,12 +162,12 @@ class BankSimple {
         return false;
       }
       Account account = (Account) o;
-      return id == account.id && Objects.equals(balance, account.balance);
+      return id == account.id;
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(id, balance);
+      return Objects.hash(id);
     }
 
     @Override
