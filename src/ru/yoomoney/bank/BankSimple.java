@@ -47,8 +47,8 @@ public class BankSimple {
   public void transfer(long senderId, long receiverId, BigDecimal amount) {
     Account sender = getAccountById(senderId);
     Account receiver = getAccountById(receiverId);
-    theadSafeApproach(amount, sender, receiver);
-//    badApproach(amount, sender, receiver);
+//    theadSafeApproach(amount, sender, receiver);
+    badApproach(amount, sender, receiver);
     try {
       historyReadWriteLock.writeLock().lock();
       addHistory(amount, sender, OperationType.WITHDRAW);
@@ -61,8 +61,8 @@ public class BankSimple {
   private static void theadSafeApproach(BigDecimal amount, Account sender, Account receiver) {
     List<Account> accountsForLock = Arrays.asList(sender, receiver);
     accountsForLock.sort((o1, o2) -> o1.id > o2.id ? 1 : -1);
-    synchronized (accountsForLock.get(0)){
-      synchronized (accountsForLock.get(1)){
+    synchronized (accountsForLock.get(0)) {
+      synchronized (accountsForLock.get(1)) {
         sender.subtractAmount(amount);
         receiver.addAmount(amount);
       }
@@ -166,7 +166,11 @@ public class BankSimple {
     }
 
     public void subtractAmount(BigDecimal amount) {
-      balance = balance.subtract(amount);
+      BigDecimal newBalance = balance.subtract(amount);
+      if (newBalance.doubleValue() < 0) {
+        throw new IllegalArgumentException("Negative balance is not supported.");
+      }
+      balance = newBalance;
     }
 
     @Override
