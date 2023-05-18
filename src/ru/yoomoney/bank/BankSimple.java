@@ -6,7 +6,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
  * <p>
  * Желательно реализовать логику работы банка, с учётом его работы в многопоточной среде.
  */
-class BankSimple {
+public class BankSimple {
 
   private static final String ACCOUNT_NOT_FOUND_ERROR = "Account not found, accountId=%s";
   private final List<Account> accounts;
@@ -47,18 +47,34 @@ class BankSimple {
   public void transfer(long senderId, long receiverId, BigDecimal amount) {
     Account sender = getAccountById(senderId);
     Account receiver = getAccountById(receiverId);
-    synchronized (sender) {
-      synchronized (receiver) {
-        sender.subtractAmount(amount);
-        receiver.addAmount(amount);
-      }
-    }
+    theadSafeApproach(amount, sender, receiver);
+//    badApproach(amount, sender, receiver);
     try {
       historyReadWriteLock.writeLock().lock();
       addHistory(amount, sender, OperationType.WITHDRAW);
       addHistory(amount, receiver, OperationType.TOPUP);
     } finally {
       historyReadWriteLock.writeLock().unlock();
+    }
+  }
+
+  private static void theadSafeApproach(BigDecimal amount, Account sender, Account receiver) {
+    List<Account> accountsForLock = Arrays.asList(sender, receiver);
+    accountsForLock.sort((o1, o2) -> o1.id > o2.id ? 1 : -1);
+    synchronized (accountsForLock.get(0)){
+      synchronized (accountsForLock.get(1)){
+        sender.subtractAmount(amount);
+        receiver.addAmount(amount);
+      }
+    }
+  }
+
+  private static void badApproach(BigDecimal amount, Account sender, Account receiver) {
+    synchronized (sender) {
+      synchronized (receiver) {
+        sender.subtractAmount(amount);
+        receiver.addAmount(amount);
+      }
     }
   }
 
